@@ -1,0 +1,425 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Training Tracker</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="/icons/icon-512.png"/>
+  <style>
+    :root{ color-scheme: light dark; --tint:#0ea5e9; --bg:#f2f2f7; --card:#ffffff; --label:#111827; --secondary:rgba(60,60,67,0.6); --separator:rgba(60,60,67,0.29); --hairline:rgba(0,0,0,0.08); --shadow:0 10px 30px rgba(0,0,0,.07); --surface-translucent:rgba(255,255,255,0.85); }
+    @media (prefers-color-scheme: dark){ :root{ --bg:#000; --card:#1c1c1e; --label:#f2f2f7; --secondary:rgba(235,235,245,0.6); --separator:rgba(84,84,88,0.65); --hairline:rgba(255,255,255,0.08); --shadow:0 10px 30px rgba(0,0,0,.75); --surface-translucent:rgba(28,28,30,0.85); }}
+    html,body,#root{height:100%}
+    body{margin:0;background:var(--bg);color:var(--label);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans";-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+    .nav{position:sticky;top:0;z-index:1000;backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);background:var(--surface-translucent);border-bottom:.5px solid var(--hairline);padding-top:max(env(safe-area-inset-top),10px)}
+    .nav-inner{max-width:680px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
+    .large-title{font-size:clamp(22px,4vw,34px);font-weight:800;letter-spacing:-.02em}
+    .segmented{background:rgba(118,118,128,.12);border-radius:12px;padding:2px;display:inline-flex}
+    .segmented button{min-width:88px;padding:8px 12px;border-radius:10px;border:none;background:transparent;color:var(--secondary)}
+    .segmented button[aria-pressed="true"]{background:var(--card);color:var(--tint);box-shadow:var(--shadow)}
+    .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:1000;backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);background:var(--surface-translucent);border-top:.5px solid var(--hairline);padding-bottom:max(env(safe-area-inset-bottom),8px)}
+    .tabbar-inner{max-width:680px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 16px}
+    .tabbar button{background:none;border:none;padding:8px;color:var(--secondary);border-radius:10px;min-height:44px}
+    .tabbar button[aria-selected="true"]{color:var(--tint);background:rgba(14,165,233,0.12)}
+    .section{max-width:680px;margin:12px auto;padding:0 16px}
+    .group{background:var(--card);border-radius:14px;box-shadow:var(--shadow);border:.5px solid var(--hairline);overflow:hidden}
+    .row{display:flex;align-items:center;gap:12px;padding:12px 16px;min-height:44px;line-height:1.2}
+    .row + .row{border-top:.5px solid var(--separator)}
+    .title-sm{font-weight:600;font-size:13px;color:var(--secondary);padding:6px 4px 8px}
+    .btn{padding:10px 12px;min-height:44px;border-radius:10px;border:.5px solid var(--hairline);background:var(--card);color:var(--label)}
+    .switch{appearance:none;width:52px;height:32px;border-radius:16px;background:#d1d1d6;position:relative;border:none;cursor:pointer;outline:none}
+    .switch:after{content:'';position:absolute;top:2px;left:2px;width:28px;height:28px;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .2s}
+    .switch:checked{background:var(--tint)}
+    .switch:checked:after{left:22px}
+    .grid-7{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+    .day{aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:.5px solid var(--hairline);background:var(--card);min-height:44px}
+    .day.is-today{outline:2px solid var(--tint);outline-offset:-2px}
+    .note{width:100%;border:.5px solid var(--hairline);border-radius:10px;padding:10px;background:var(--card);color:var(--label);min-height:80px}
+    .sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end;justify-content:center;z-index:2000}
+    .sheet > div{width:100%;max-width:420px;background:var(--card);border-top-left-radius:18px;border-top-right-radius:18px;border:.5px solid var(--hairline);box-shadow:var(--shadow);padding-bottom:max(env(safe-area-inset-bottom),10px)}
+    .grab{width:36px;height:4px;border-radius:2px;background:rgba(128,128,128,.4);margin:8px auto}
+    .picker{display:block;width:100%;font-size:18px;border-radius:12px;padding:10px;border:.5px solid var(--hairline);background:var(--card);color:var(--label)}
+
+    /* Error overlay */
+    .err-overlay{position:fixed;inset:0;background:rgba(220,38,38,.1);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center}
+    .err-card{max-width:720px;margin:0 12px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    .err-card pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word}
+    @media (prefers-color-scheme: dark){
+      .err-card{background:#1c1c1e;color:#fecaca;border-color:#7f1d1d}
+    }
+  </style>
+
+  <script defer src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script defer src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    });
+  }
+  </script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useEffect, useRef } = React;
+
+    // ----- Error Boundary & global overlay
+    function ErrorBoundary({ children }) {
+      const [err, setErr] = React.useState(null);
+      React.useEffect(() => {
+        const h = (event) => { setErr(event.error || new Error(String(event.message||"Unknown error"))); };
+        window.addEventListener('error', h);
+        window.addEventListener('unhandledrejection', (e)=> setErr(e.reason instanceof Error ? e.reason : new Error(String(e.reason))));
+        return () => { window.removeEventListener('error', h); };
+      }, []);
+      if (err) {
+        return (
+          <div className="err-overlay" role="alert" aria-live="assertive">
+            <div className="err-card">
+              <pre>{String(err.stack || err.message || err)}</pre>
+            </div>
+          </div>
+        );
+      }
+      return children;
+    }
+
+    // Helpers
+    function startOfMonth(date){ const d=new Date(date); d.setDate(1); d.setHours(0,0,0,0); return d; }
+    function isoDate(d){ return new Date(d).toISOString().slice(0,10); }
+    function fmtShort(d){ return new Date(d).toLocaleDateString(undefined,{day:"numeric"}); }
+    function nextMonth(d,n=1){ const x=new Date(d); x.setMonth(x.getMonth()+n); return x; }
+    function clamp(v,mi,ma){ return Math.max(mi, Math.min(ma, v)); }
+    const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+
+    function getExerciseBaseName(label){
+      if(!label) return "";
+      const dash = label.indexOf("—"); const hy = label.indexOf("-");
+      const idx = [dash,hy].filter(i=>i>-1).sort((a,b)=>a-b)[0];
+      const cut = idx>-1 ? label.slice(0,idx) : label;
+      return cut.replace(/\\s+\\([^)]+\\)$/,"").trim();
+    }
+
+    // Inline base images (encoded SVGs)
+    const BASE_SVGS = {"Leg press": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%A6%B5%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ELeg%20press%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Glute bridge": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%8D%91%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EGlute%20bridge%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Step-ups": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%AA%9C%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EStep-ups%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Standing calf raises": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%90%AE%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ECalf%20raises%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Pallof press": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%8F%B9%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EPallof%20press%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Superman hold": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%A6%B8%E2%80%8D%E2%99%82%EF%B8%8F%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ESuperman%20hold%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Chest press": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%9B%A1%EF%B8%8F%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EChest%20press%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Seated row": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%9A%A3%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ESeated%20row%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Shoulder press": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%92%AA%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EShoulder%20press%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Lat pulldown": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%8F%97%EF%B8%8F%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ELat%20pulldown%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Dead bug": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%90%9E%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3EDead%20bug%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E", "Side plank": "data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%271200%27%20height%3D%27630%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%230ea5e9%27%2F%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%2338bdf8%27%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27100%25%27%20height%3D%27100%25%27%20fill%3D%27url%28%23g%29%27%2F%3E%3Cg%20transform%3D%27translate%28600%2C270%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%27140%27%20dy%3D%270.35em%27%3E%F0%9F%A7%98%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20transform%3D%27translate%28600%2C470%29%27%3E%3Ctext%20text-anchor%3D%27middle%27%20font-size%3D%2748%27%20fill%3D%27white%27%20font-family%3D%27-apple-system%2Csystem-ui%27%3ESide%20plank%3C%2Ftext%3E%3C%2Fg%3E%3Cg%20opacity%3D%270.25%27%3E%3Crect%20x%3D%2760%27%20y%3D%2760%27%20width%3D%271080%27%20height%3D%27510%27%20rx%3D%2728%27%20ry%3D%2728%27%20fill%3D%27white%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E"};
+
+    // Relevant per-exercise videos
+    const VIDEO = {
+      "Leg press": "https://www.youtube.com/embed/IZxyjW7MPJQ",
+      "Glute bridge": "https://www.youtube.com/embed/wPM8icPu6H8",
+      "Step-ups": "https://www.youtube.com/embed/dQqApCGd6Ok",
+      "Standing calf raises": "https://www.youtube.com/embed/YMmgqO8Jo-k",
+      "Pallof press": "https://www.youtube.com/embed/k5q2dQJ-5pY",
+      "Superman hold": "https://www.youtube.com/embed/z6PJMT2y8GQ",
+      "Chest press": "https://www.youtube.com/embed/Fx8f1xFFJ2U",
+      "Seated row": "https://www.youtube.com/embed/GZbfZ033f74",
+      "Shoulder press": "https://www.youtube.com/embed/qEwKCR5JCog",
+      "Lat pulldown": "https://www.youtube.com/embed/CAwf7n6Luuc",
+      "Dead bug": "https://www.youtube.com/embed/g_BYB0R5pA0",
+      "Side plank": "https://www.youtube.com/embed/K2VljzCC16g"
+    };
+
+    // Wikimedia secondary (optional)
+    const WIKI = {
+      "Leg press": ["https://upload.wikimedia.org/wikipedia/commons/8/89/Leg_press_machine.jpg"],
+      "Glute bridge": ["https://upload.wikimedia.org/wikipedia/commons/5/58/Glute_bridge.png"],
+      "Step-ups": ["https://upload.wikimedia.org/wikipedia/commons/3/3e/Step-up_exercise.jpg"],
+      "Standing calf raises": ["https://upload.wikimedia.org/wikipedia/commons/8/88/Standing_calf_raise.jpg"],
+      "Pallof press": ["https://upload.wikimedia.org/wikipedia/commons/7/72/Pallof_press_demo.png"],
+      "Superman hold": ["https://upload.wikimedia.org/wikipedia/commons/f/fc/Superman_exercise.png"],
+      "Chest press": ["https://upload.wikimedia.org/wikipedia/commons/b/b9/Chest_press_machine.jpg"],
+      "Seated row": ["https://upload.wikimedia.org/wikipedia/commons/7/71/Seated_Row_Cable.jpg"],
+      "Shoulder press": ["https://upload.wikimedia.org/wikipedia/commons/2/25/Shoulder_press_dumbbells.jpg"],
+      "Lat pulldown": ["https://upload.wikimedia.org/wikipedia/commons/2/26/Lat_pulldown_machine.jpg"],
+      "Dead bug": ["https://upload.wikimedia.org/wikipedia/commons/8/85/Dead_bug_core_exercise.png"],
+      "Side plank": ["https://upload.wikimedia.org/wikipedia/commons/5/54/Side_plank_core.jpg"]
+    };
+
+    const EXERCISE_GUIDE = Object.fromEntries(Object.keys(BASE_SVGS).map(k=>[k, { imgs: [BASE_SVGS[k], ...(WIKI[k]||[])], videos: [VIDEO[k]] } ]));
+
+    const PROGRAM = {
+      Tuesday: { type:"lower", focus:"Day B (Lower + Core + Bike Intervals)",
+        tasks:["Leg press — 3×12","Glute bridge — 3×12","Step-ups — 2×10/leg","Standing calf raises — 3×15","Pallof press — 2×12/side","Superman hold — 2×15 sec"],
+        intervalsTitle:"Finisher — 15‑min Bike Intervals",
+        intervals:["0–3: Warm-up (60–70 RPM)","3–5: Interval 1 (80–90 RPM)","5–7: Recovery (60–70 RPM)","7–9: Interval 2 (80–90 RPM)","9–11: Recovery (60–70 RPM)","11–13: Interval 3 (85–95 RPM)","13–15: Cool down (60–70 RPM)"]
+      },
+      Thursday: { type:"cardio", focus:"Cardio + Core (Bike Steady + Sprints)",
+        tasks:["Side planks — 2×30 sec/side","Dead bugs — 2×10/side"],
+        intervalsTitle:"Bike — 20‑min steady cardio + sprints",
+        intervals:["0–3: Warm-up (60–70 RPM)","3–15: Steady 70–80 RPM (~6/10)","15–18: Sprints 90–100 RPM (~8/10)","18–20: Cool down 60–65 RPM"]
+      },
+      Saturday: { type:"upper", focus:"Day A (Upper + Core + Steady Bike)",
+        tasks:["Chest press — 3×12","Seated row — 3×12","Shoulder press — 3×10","Lat pulldown — 3×12","Dead bug — 2×10/side","Side plank — 2×20–30 sec/side"],
+        intervalsTitle:"Cardio finisher — 15–20 min steady bike",
+        intervals:["15–20: Steady 70–80 RPM (~6/10)"]
+      }
+    };
+
+    function Segmented({ value, onChange }){
+      return (
+        <div className="segmented" role="tablist" aria-label="View mode">
+          {["Calendar","Today"].map((label)=>{
+            const key = label.toLowerCase();
+            return (
+              <button key={key} role="tab" aria-pressed={value===key} aria-selected={value===key}
+                onClick={()=>onChange(key)}>{label}</button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function Nav({ title, right }){
+      return (
+        <div className="nav" role="banner">
+          <div className="nav-inner">
+            <div className="large-title" aria-live="polite">{title}</div>
+            <div>{right}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function TabBar({ active, onChange }){
+      const tabs=[{k:'calendar',label:'Calendar',emoji:'📆'},{k:'today',label:'Today',emoji:'✅'}];
+      return (
+        <nav className="tabbar" role="tablist" aria-label="Main">
+          <div className="tabbar-inner">
+            {tabs.map(t=>(
+              <button key={t.k} aria-selected={active===t.k} aria-label={t.label} onClick={()=>onChange(t.k)}>
+                <div style={{fontSize:18,lineHeight:1}}>{t.emoji}</div>
+                <div style={{fontSize:11}}>{t.label}</div>
+              </button>
+            ))}
+          </div>
+        </nav>
+      );
+    }
+
+    function MonthView({ currentMonth, setCurrentMonth, setSelectedDate }){
+      const year=currentMonth.getFullYear(); const month=currentMonth.getMonth();
+      const firstDay=startOfMonth(currentMonth);
+      const startDay=firstDay.getDay()===0?6:firstDay.getDay()-1;
+      const daysInMonth=new Date(year,month+1,0).getDate();
+      const cells=[]; for(let i=0;i<startDay;i++) cells.push(null); for(let d=1; d<=daysInMonth; d++) cells.push(new Date(year,month,d));
+      return (
+        <main>
+          <section className="section" aria-label="Calendar">
+            <div className="group" style={{padding:"12px 12px"}}>
+              <div className="row" style={{justifyContent:"space-between"}}>
+                <button className="btn" aria-label="Previous month" onClick={()=>setCurrentMonth(nextMonth(currentMonth,-1))}>←</button>
+                <div style={{fontWeight:700}}>{currentMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</div>
+                <button className="btn" aria-label="Next month" onClick={()=>setCurrentMonth(nextMonth(currentMonth,1))}>→</button>
+              </div>
+              <div className="title-sm" style={{paddingLeft:8}}>Weekdays</div>
+              <div className="grid-7" style={{padding:"4px 8px 12px"}}>
+                {DAYS.map(d=><div key={d} style={{textAlign:"center", color:"var(--secondary)", fontSize:12}}>{d}</div>)}
+              </div>
+              <div className="grid-7" style={{padding:"0 8px 8px"}}>
+                {cells.map((date,idx)=>{
+                  if(!date) return <div key={idx}/>;
+                  const dayName = date.toLocaleDateString(undefined,{weekday:"long"});
+                  const cfg = PROGRAM[dayName];
+                  const raw = localStorage.getItem("tt-day:"+isoDate(date));
+                  const data = raw? JSON.parse(raw): {tasks:[], intervals:[], logs:[], notes:""};
+                  const total = cfg? (cfg.tasks.length + (cfg.intervals?.length||0)): 0;
+                  const done = (data.tasks?.filter(Boolean).length||0) + (data.intervals?.filter(Boolean).length||0);
+                  const isToday = isoDate(date)===isoDate(new Date());
+                  return (
+                    <button key={idx} className={"day"+(isToday?" is-today":"")} onClick={()=>setSelectedDate(date)} aria-label={date.toDateString()}>
+                      <div className="num">{fmtShort(date)}</div>
+                      <div style={{fontSize:18}}>{cfg ? (cfg.type==="lower"?"🏋️‍♂️": cfg.type==="upper"?"💪": "🚴") : "💤"}</div>
+                      <div style={{fontSize:10, color:"var(--secondary)"}}>{total>0? (done+"/"+total) : "Rest"}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </main>
+      );
+    }
+
+    function InfoPopup({ name, onClose }){
+      const entry = Object.entries(EXERCISE_GUIDE).find(([k])=> name.toLowerCase().includes(k.toLowerCase()));
+      const imgs = (entry?.[1].imgs || []).slice();
+      const vids = (entry?.[1].videos || []).slice();
+      const [imgIdx, setImgIdx] = React.useState(0);
+      const [vidIdx, setVidIdx] = React.useState(0);
+      const title = entry? `${entry[0]} Guide` : `${name} Guide`;
+      return (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+          <div>
+            <div className="grab"></div>
+            <div style={{padding:"8px 16px 4px", display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+              <div style={{fontWeight:700}}>{title}</div>
+              <div style={{display:"flex", gap:8}}>
+                <button className="btn" onClick={()=>setImgIdx((i)=>(i+1)%imgs.length)}>Image ↻</button>
+                <button className="btn" onClick={()=>setVidIdx((i)=>(i+1)%vids.length)}>Video ↻</button>
+                <button className="btn" onClick={onClose} aria-label="Close">Done</button>
+              </div>
+            </div>
+            <div style={{padding:"8px 16px 16px"}}>
+              <img src={imgs[imgIdx]} alt={title} style={{width:"100%", borderRadius:12, display:"block"}} onError={()=>setImgIdx(i=>Math.min(i+1, imgs.length-1))}/>
+              <div style={{height:12}}/>
+              <div style={{position:"relative", paddingBottom:"56.25%", height:0, overflow:"hidden", borderRadius:12, border:"0.5px solid var(--hairline)"}}>
+                <iframe key={vidIdx} src={vids[vidIdx]} title={title} style={{position:"absolute", top:0, left:0, width:"100%", height:"100%", border:0, borderRadius:12}} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function PickerSheet({ title, value, onChange, onClose, options, format }){
+      const ref = useRef(null);
+      useEffect(()=>{
+        const t = setTimeout(()=>{ try { if (ref.current) { ref.current.focus({preventScroll:true}); ref.current.click(); } } catch(e){} }, 50);
+        return ()=>clearTimeout(t);
+      },[]);
+      return (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+          <div>
+            <div className="grab"></div>
+            <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 16px 8px"}}>
+              <div style={{fontWeight:700}}>{title}</div>
+              <button className="btn" onClick={onClose} aria-label="Done">Done</button>
+            </div>
+            <div style={{padding:"0 16px 16px"}}>
+              <select ref={ref} className="picker" value={String(value)} onChange={(e)=>onChange(Number(e.target.value))}>
+                {options.map(v=>(<option key={v} value={v}>{format?format(v):v}</option>))}
+              </select>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function DetailView({ selectedDate, setSelectedDate }){
+      const dateISO = isoDate(selectedDate);
+      const dayName = selectedDate.toLocaleDateString(undefined,{weekday:"long"});
+      const cfg = PROGRAM[dayName];
+      const [data, setData] = useState(JSON.parse(localStorage.getItem("tt-day:"+dateISO) || '{"tasks":[],"intervals":[],"logs":[],"notes":""}'));
+      const [picker, setPicker] = useState(null);
+      const [info, setInfo] = useState(null);
+      useEffect(()=>{ setData(JSON.parse(localStorage.getItem("tt-day:"+dateISO) || '{"tasks":[],"intervals":[],"logs":[],"notes":""}')); },[dateISO]);
+      useEffect(()=>{ localStorage.setItem("tt-day:"+dateISO, JSON.stringify(data)); },[dateISO, data]);
+
+      const ensureLog = (i)=>{
+        setData(prev=>{ const logs = prev.logs? [...prev.logs]: []; logs[i] = { w: prev.logs?.[i]?.w ?? 10, r: prev.logs?.[i]?.r ?? 10 }; return { ...prev, logs }; });
+      };
+
+      function buildOptions(min,max,step){ const out=[]; for(let v=min; v<=max+1e-9; v+=step){ const r=Math.round(v/step)*step; const val=Number(r.toFixed(step<1?1:0)); out.push(val); } return out; }
+
+      const openWeightPicker = (i)=>{ const cur = Number(data.logs?.[i]?.w ?? 10); const options = buildOptions(0,200,0.5); setPicker({ idx:i, field:'w', value: clamp(cur,0,200), options, title:'Weight (kg)', format:(v)=>`${v.toFixed(1)} kg` }); };
+      const openRepsPicker = (i)=>{ const cur = Number(data.logs?.[i]?.r ?? 10); const options = buildOptions(1,30,1); setPicker({ idx:i, field:'r', value: clamp(cur,1,30), options, title:'Reps', format:(v)=>`${v}` }); };
+      const applyPicker = (val)=>{ if(!picker) return; setData(prev=>{ const logs = prev.logs? [...prev.logs]: []; const cur = logs[picker.idx] || { w:10, r:10 }; logs[picker.idx] = { ...cur, [picker.field]: val }; return { ...prev, logs }; }); };
+
+      const toggleTask=(i)=> setData(prev=>{ const tasks = prev.tasks? [...prev.tasks]: []; tasks[i]=!tasks[i]; return { ...prev, tasks }; });
+      const toggleInterval=(i)=> setData(prev=>{ const intervals = prev.intervals? [...prev.intervals]: []; intervals[i]=!intervals[i]; return { ...prev, intervals }; });
+
+      return (
+        <main className="section">
+          <div className="group" style={{padding:12}}>
+            <div className="row" style={{justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontSize:12, color:"var(--secondary)"}}>{selectedDate.toLocaleDateString(undefined,{weekday:'long'})}</div>
+                <div style={{fontWeight:800, fontSize:20}}>{selectedDate.toLocaleDateString()}</div>
+                <div style={{fontSize:13, color:"var(--secondary)"}}>{cfg ? cfg.focus : "Rest / Recovery"}</div>
+              </div>
+              <button className="btn" onClick={()=>setSelectedDate(null)} aria-label="Back to month">Back</button>
+            </div>
+          </div>
+
+          {cfg ? (
+            <>
+              <div className="title-sm">Exercises</div>
+              <div className="group">
+                {cfg.tasks.map((t,i)=>{
+                  const base = getExerciseBaseName(t);
+                  const wVal = Number(data.logs?.[i]?.w ?? 10);
+                  const rVal = Number(data.logs?.[i]?.r ?? 10);
+                  return (
+                    <div className="row" key={i}>
+                      <input aria-label={"Done: "+base} type="checkbox" className="switch" checked={!!data.tasks?.[i]} onChange={()=>toggleTask(i)} />
+                      <div style={{flex:"1 1 auto"}}>
+                        <div style={{fontWeight:600}}>{base}</div>
+                        <div style={{color:"var(--secondary)", fontSize:12}}>{t.replace(base,'').trim()}</div>
+                      </div>
+                      <button className="btn" onClick={()=>{ setInfo(base); }} aria-label={"Guide for "+base}>Guide</button>
+                      <button className="btn" onClick={()=>{ ensureLog(i); openWeightPicker(i); }}>{wVal.toFixed(1)} kg</button>
+                      <button className="btn" onClick={()=>{ ensureLog(i); openRepsPicker(i); }}>{rVal} reps</button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {Array.isArray(cfg.intervals) && cfg.intervals.length>0 && (
+                <>
+                  <div className="title-sm">{cfg.intervalsTitle}</div>
+                  <div className="group">
+                    {cfg.intervals.map((t,i)=>(
+                      <label className="row" key={i}>
+                        <input aria-label={"Done: "+t} type="checkbox" className="switch" checked={!!data.intervals?.[i]} onChange={()=>toggleInterval(i)} />
+                        <div style={{fontSize:14}}>{t}</div>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="title-sm">Notes</div>
+              <div className="group" style={{padding:12}}>
+                <textarea className="note" rows="3" placeholder="How did it feel? Any back tightness?" value={data.notes || ""} onChange={(e)=>setData(prev=>({...prev, notes:e.target.value}))}></textarea>
+              </div>
+            </>
+          ) : (
+            <div className="group" style={{padding:12}}><div style={{color:"var(--secondary)", fontSize:14}}>Rest / Active recovery. Suggested: light walk, gentle mobility.</div></div>
+          )}
+
+          {picker && (
+            <PickerSheet
+              title={picker.title}
+              value={picker.value}
+              options={picker.options}
+              onChange={(val)=>{ applyPicker(val); }}
+              onClose={()=>setPicker(null)}
+              format={picker.format}
+            />
+          )}
+
+          {info && <InfoPopup name={info} onClose={()=>setInfo(null)} />}
+        </main>
+      );
+    }
+
+    function App(){
+      const [mode, setMode] = useState('calendar');
+      const [selectedDate, setSelectedDate] = useState(null);
+      const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
+      const handleModeChange = (k)=>{ setMode(k); if(k==='today') setSelectedDate(new Date()); else if(k==='calendar') setSelectedDate(null); };
+      return (
+        <ErrorBoundary>
+          <Nav title={selectedDate ? "Workout" : "Training"} right={<Segmented value={mode} onChange={handleModeChange} />} />
+          {!selectedDate ? (
+            <MonthView currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} setSelectedDate={setSelectedDate} />
+          ) : (
+            <DetailView selectedDate={selectedDate} setSelectedDate={setSelectedDate} />
+          )}
+          <TabBar active={mode} onChange={handleModeChange} />
+        </ErrorBoundary>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
