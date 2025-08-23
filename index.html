@@ -1,0 +1,303 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Training Tracker</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0ea5e9">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="/icons/icon-512.png"/>
+  <style>
+    html,body,#root{height:100%}
+    body{margin:0;-webkit-font-smoothing:antialiased;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial}
+    #boot{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#f2f2f7;color:#111827}
+    #boot .card{max-width:560px;background:white;border:1px solid rgba(0,0,0,.08);padding:16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+    #boot small{color:#6b7280}
+    .err-overlay{position:fixed;inset:0;background:rgba(220,38,38,.1);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);z-index:9999;display:none;align-items:center;justify-content:center}
+    .err-card{max-width:720px;margin:0 12px;background:#fff;color:#b91c1c;border:1px solid #fca5a5;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+    .err-card pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="boot">
+    <div class="card">
+      <b>Loading Training Tracker…</b>
+      <div id="bootmsg"><small>Preparing scripts…</small></div>
+      <div style="margin-top:8px"><small>If this stays for more than a few seconds, open <code>/reset.html</code> to clear old cache.</small></div>
+    </div>
+  </div>
+  <div id="err" class="err-overlay"><div class="err-card"><pre id="errtxt"></pre></div></div>
+  <script>
+    (function(){
+      var boot=document.getElementById('boot'); var msg=document.getElementById('bootmsg');
+      function showError(e){
+        var el=document.getElementById('err'); var t=document.getElementById('errtxt');
+        if(el&&t){ t.textContent=String((e&&e.stack)||e); el.style.display='flex'; }
+        if(boot) boot.style.display='none';
+      }
+      window.addEventListener('error', function(e){ showError(e.error||e.message||"Unknown error"); });
+      window.addEventListener('unhandledrejection', function(e){ showError(e.reason||"Unhandled rejection"); });
+      // Safety timeout
+      setTimeout(function(){
+        if(!window.__APP_MOUNTED__){
+          msg.innerHTML = "<small>Still loading… if it persists, visit <a href='/reset.html'>reset.html</a> then reload.</small>";
+        }
+      }, 3500);
+      // SW
+      if('serviceWorker' in navigator){
+        window.addEventListener('load', function(){
+          navigator.serviceWorker.register('/sw.js').catch(function(e){ console.warn('SW reg failed', e); });
+        });
+      }
+    })();
+  </script>
+  <!-- React & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-presets="env,react">
+    const {useState,useEffect,useRef}=React;
+
+    function ErrorBoundary({children}){
+      const [err,setErr]=useState(null);
+      useEffect(()=>{
+        const onErr=(e)=>setErr(e.error||new Error(String(e.message||'Unknown error')));
+        window.addEventListener('error',onErr);
+        window.addEventListener('unhandledrejection', e=>setErr(e.reason instanceof Error?e.reason:new Error(String(e.reason))));
+        return ()=>{window.removeEventListener('error',onErr)};
+      },[]);
+      if(err) return <div className="err-overlay" style={{display:'flex'}}><div className="err-card"><pre>{String(err.stack||err.message||err)}</pre></div></div>;
+      return children;
+    }
+
+    function startOfMonth(d){const x=new Date(d);x.setDate(1);x.setHours(0,0,0,0);return x;}
+    function isoDate(d){return new Date(d).toISOString().slice(0,10);}
+    function fmtShort(d){return new Date(d).toLocaleDateString(undefined,{day:'numeric'});}
+    function nextMonth(d,n=1){const x=new Date(d);x.setMonth(x.getMonth()+n);return x;}
+    const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+    function getExerciseBaseName(label){
+      if(!label) return ''; const dash=label.indexOf('—'); const hy=label.indexOf('-');
+      const idx=[dash,hy].filter(i=>i>-1).sort((a,b)=>a-b)[0]; const cut=idx>-1?label.slice(0,idx):label;
+      return cut.replace(/\s+\([^)]+\)$/,'').trim();
+    }
+
+    const EMBED=(id)=>`https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+    const VIDEO={
+      "Leg press": EMBED("fpYaVKypytg"),
+      "Glute bridge": EMBED("KwHhk-RLiyQ"),
+      "Step-ups": EMBED("k8_XGuDcQ2E"),
+      "Standing calf raises": EMBED("JTzf4IPR7dw"),
+      "Pallof press": EMBED("5aZ0IhJS8O8"),
+      "Superman hold": EMBED("VD6ma6oe4ZA"),
+      "Chest press": EMBED("_g6bPSKIamY"),
+      "Seated row": EMBED("Kh2WA2Y1M0k"),
+      "Shoulder press": EMBED("e1scliIVDQo"),
+      "Lat pulldown": EMBED("5s6KGLTMgoI"),
+      "Dead bug": EMBED("DqLL45uk2Tk"),
+      "Side plank": EMBED("BtM0a9x1F5o"),
+    };
+
+    const PROGRAM={
+      Tuesday:{type:'lower',focus:'Day B (Lower + Core + Bike Intervals)',tasks:['Leg press — 3×12','Glute bridge — 3×12','Step-ups — 2×10/leg','Standing calf raises — 3×15','Pallof press — 2×12/side','Superman hold — 2×15 sec'],intervalsTitle:'Finisher — 15‑min Bike Intervals',intervals:['0–3: Warm-up (60–70 RPM)','3–5: Interval 1 (80–90 RPM)','5–7: Recovery (60–70 RPM)','7–9: Interval 2 (80–90 RPM)','9–11: Recovery (60–70 RPM)','11–13: Interval 3 (85–95 RPM)','13–15: Cool down (60–70 RPM)']},
+      Thursday:{type:'cardio',focus:'Cardio + Core (Bike Steady + Sprints)',tasks:['Side planks — 2×30 sec/side','Dead bugs — 2×10/side'],intervalsTitle:'Bike — 20‑min steady cardio + sprints',intervals:['0–3: Warm-up (60–70 RPM)','3–15: Steady 70–80 RPM (~6/10)','15–18: Sprints 90–100 RPM (~8/10)','18–20: Cool down 60–65 RPM']},
+      Saturday:{type:'upper',focus:'Day A (Upper + Core + Steady Bike)',tasks:['Chest press — 3×12','Seated row — 3×12','Shoulder press — 3×10','Lat pulldown — 3×12','Dead bug — 2×10/side','Side plank — 2×20–30 sec/side'],intervalsTitle:'Cardio finisher — 15–20 min steady bike',intervals:['15–20: Steady 70–80 RPM (~6/10)']},
+    };
+
+    function Segmented({value,onChange}){
+      return <div className="segmented" role="tablist" aria-label="View mode">
+        {['Calendar','Today'].map(l=>{const k=l.toLowerCase();return <button key={k} role="tab" aria-pressed={value===k} aria-selected={value===k} onClick={()=>onChange(k)}>{l}</button>})}
+      </div>;
+    }
+    function Nav({title,right}){
+      return <div className="nav" style={{position:'sticky',top:0,background:'rgba(255,255,255,.85)',backdropFilter:'saturate(180%) blur(20px)'}}><div className="nav-inner"><div className="large-title">{title}</div><div>{right}</div></div></div>;
+    }
+    function MonthView({currentMonth,setCurrentMonth,setSelectedDate}){
+      const year=currentMonth.getFullYear(), month=currentMonth.getMonth();
+      const firstDay=startOfMonth(currentMonth);
+      const startDay=firstDay.getDay()===0?6:firstDay.getDay()-1;
+      const daysInMonth=new Date(year,month+1,0).getDate();
+      const cells=[]; for(let i=0;i<startDay;i++) cells.push(null); for(let d=1; d<=daysInMonth; d++) cells.push(new Date(year,month,d));
+      return <main><section className="section"><div className="group" style={{padding:'12px 12px'}}>
+        <div className="row" style={{justifyContent:'space-between'}}>
+          <button className="btn" onClick={()=>setCurrentMonth(nextMonth(currentMonth,-1))}>←</button>
+          <div style={{fontWeight:700}}>{currentMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</div>
+          <button className="btn" onClick={()=>setCurrentMonth(nextMonth(currentMonth,1))}>→</button>
+        </div>
+        <div className="title-sm" style={{paddingLeft:8}}>Weekdays</div>
+        <div className="grid-7" style={{padding:'4px 8px 12px'}}>{['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=><div key={d} style={{textAlign:'center',color:'rgba(60,60,67,.6)',fontSize:12}}>{d}</div>)}</div>
+        <div className="grid-7" style={{padding:'0 8px 8px'}}>
+          {cells.map((date,idx)=>{
+            if(!date) return <div key={idx}/>;
+            const dayName=date.toLocaleDateString(undefined,{weekday:'long'});
+            const cfg=PROGRAM[dayName];
+            const raw=localStorage.getItem('tt-day:'+isoDate(date));
+            const data=raw?JSON.parse(raw):{tasks:[],intervals:[],logs:[],notes:''};
+            const total=cfg?(cfg.tasks.length+(cfg.intervals?.length||0)):0;
+            const done=(data.tasks?.filter(Boolean).length||0)+(data.intervals?.filter(Boolean).length||0);
+            const isToday=isoDate(date)===isoDate(new Date());
+            return <button key={idx} className={'day'+(isToday?' is-today':'')} onClick={()=>setSelectedDate(date)}>
+              <div className="num">{fmtShort(date)}</div>
+              <div style={{fontSize:18}}>{cfg ? (cfg.type==='lower'?'🏋️‍♂️': cfg.type==='upper'?'💪': '🚴') : '💤'}</div>
+              <div style={{fontSize:10,color:'rgba(60,60,67,.6)'}}>{total>0? (done+'/'+total) : 'Rest'}</div>
+            </button>;
+          })}
+        </div>
+      </div></section></main>;
+    }
+
+    function PickerSheet({ title, value, onChange, onClose, options, format }){
+      const ref=useRef(null);
+      useEffect(()=>{const t=setTimeout(()=>{try{ref.current?.focus({preventScroll:true});ref.current?.click();}catch(e){}},50); return()=>clearTimeout(t);},[]);
+      return <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div>
+          <div className="grab"></div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px 8px'}}>
+            <div style={{fontWeight:700}}>{title}</div>
+            <button className="btn" onClick={onClose}>Done</button>
+          </div>
+          <div style={{padding:'0 16px 16px'}}>
+            <select ref={ref} className="picker" value={String(value)} onChange={(e)=>onChange(Number(e.target.value))}>
+              {options.map(v=>(<option key={v} value={v}>{format?format(v):v}</option>))}
+            </select>
+          </div>
+        </div>
+      </div>;
+    }
+
+    function InfoPopup({name,onClose}){
+      const EMBED=(id)=>`https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`;
+      const map={
+        "Leg press": EMBED("fpYaVKypytg"),
+        "Glute bridge": EMBED("KwHhk-RLiyQ"),
+        "Step-ups": EMBED("k8_XGuDcQ2E"),
+        "Standing calf raises": EMBED("JTzf4IPR7dw"),
+        "Pallof press": EMBED("5aZ0IhJS8O8"),
+        "Superman hold": EMBED("VD6ma6oe4ZA"),
+        "Chest press": EMBED("_g6bPSKIamY"),
+        "Seated row": EMBED("Kh2WA2Y1M0k"),
+        "Shoulder press": EMBED("e1scliIVDQo"),
+        "Lat pulldown": EMBED("5s6KGLTMgoI"),
+        "Dead bug": EMBED("DqLL45uk2Tk"),
+        "Side plank": EMBED("BtM0a9x1F5o"),
+      };
+      const key = Object.keys(map).find(k=>name.toLowerCase().includes(k.toLowerCase())) || name;
+      const url = map[key] || '';
+      const title = key + ' Guide';
+      return <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+        <div>
+          <div className="grab"></div>
+          <div style={{padding:'8px 16px 12px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div style={{fontWeight:700}}>{title}</div>
+            <button className="btn" onClick={onClose}>Done</button>
+          </div>
+          <div style={{padding:'0 16px 16px'}}>
+            <div className="player-9x16">
+              <iframe src={url} title={title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" allowfullscreen></iframe>
+            </div>
+          </div>
+        </div>
+      </div>;
+    }
+
+    function DetailView({selectedDate,setSelectedDate}){
+      const dateISO=isoDate(selectedDate);
+      const dayName=selectedDate.toLocaleDateString(undefined,{weekday:'long'});
+      const cfg=PROGRAM[dayName];
+      const [data,setData]=useState(JSON.parse(localStorage.getItem('tt-day:'+dateISO)||'{"tasks":[],"intervals":[],"logs":[],"notes":""}'));
+      const [picker,setPicker]=useState(null);
+      const [info,setInfo]=useState(null);
+      useEffect(()=>{setData(JSON.parse(localStorage.getItem('tt-day:'+dateISO)||'{"tasks":[],"intervals":[],"logs":[],"notes":""}'));},[dateISO]);
+      useEffect(()=>{localStorage.setItem('tt-day:'+dateISO,JSON.stringify(data));},[dateISO,data]);
+
+      const ensureLog=(i)=>{setData(prev=>{const logs=prev.logs?[...prev.logs]:[]; logs[i]={ w: prev.logs?.[i]?.w ?? 10, r: prev.logs?.[i]?.r ?? 10 }; return {...prev,logs};});};
+      function buildOptions(min,max,step){const out=[]; for(let v=min; v<=max+1e-9; v+=step){const r=Math.round(v/step)*step; const val=Number(r.toFixed(step<1?1:0)); out.push(val);} return out;}
+      const clamp=(v,mi,ma)=>Math.max(mi,Math.min(ma,v));
+      const openWeightPicker=(i)=>{const cur=Number(data.logs?.[i]?.w ?? 10); const options=buildOptions(0,200,0.5); setPicker({ idx:i, field:'w', value: clamp(cur,0,200), options, title:'Weight (kg)', format:v=>`${v.toFixed(1)} kg` });};
+      const openRepsPicker=(i)=>{const cur=Number(data.logs?.[i]?.r ?? 10); const options=buildOptions(1,30,1); setPicker({ idx:i, field:'r', value: clamp(cur,1,30), options, title:'Reps', format:v=>`${v}` });};
+      const applyPicker=(val)=>{ if(!picker) return; setData(prev=>{const logs=prev.logs?[...prev.logs]:[]; const cur=logs[picker.idx]||{w:10,r:10}; logs[picker.idx]={...cur,[picker.field]:val}; return {...prev,logs};});};
+      const toggleTask=(i)=>setData(prev=>{const tasks=prev.tasks?[...prev.tasks]:[]; tasks[i]=!tasks[i]; return {...prev,tasks};});
+      const toggleInterval=(i)=>setData(prev=>{const intervals=prev.intervals?[...prev.intervals]:[]; intervals[i]=!intervals[i]; return {...prev,intervals};});
+
+      function openWeight(i){ensureLog(i); setPicker({open:true, ...{ idx:i, field:'w', value:Number(data.logs?.[i]?.w ?? 10), options:Array.from({length:401},(_,k)=>k*0.5), title:'Weight (kg)', format:v=>`${v.toFixed(1)} kg`} });}
+      function openReps(i){ensureLog(i); setPicker({open:true, ...{ idx:i, field:'r', value:Number(data.logs?.[i]?.r ?? 10), options:Array.from({length:30},(_,k)=>k+1), title:'Reps', format:v=>`${v}`} });}
+
+      return <main className="section">
+        <div className="group" style={{padding:12}}>
+          <div className="row" style={{justifyContent:'space-between'}}>
+            <div>
+              <div style={{fontSize:12,color:'rgba(60,60,67,.6)'}}>{selectedDate.toLocaleDateString(undefined,{weekday:'long'})}</div>
+              <div style={{fontWeight:800,fontSize:20}}>{selectedDate.toLocaleDateString()}</div>
+              <div style={{fontSize:13,color:'rgba(60,60,67,.6)'}}>{cfg?cfg.focus:'Rest / Recovery'}</div>
+            </div>
+            <button className="btn" onClick={()=>setSelectedDate(null)}>Back</button>
+          </div>
+        </div>
+
+        {cfg? (<>
+          <div className="title-sm">Exercises</div>
+          <div className="group">
+            {cfg.tasks.map((t,i)=>{
+              const base=getExerciseBaseName(t);
+              const wVal=Number(data.logs?.[i]?.w ?? 10);
+              const rVal=Number(data.logs?.[i]?.r ?? 10);
+              return <div className="row" key={i}>
+                <input aria-label={"Done: "+base} type="checkbox" className="switch" checked={!!data.tasks?.[i]} onChange={()=>toggleTask(i)} />
+                <div style={{flex:'1 1 auto'}}>
+                  <div style={{fontWeight:600}}>{base}</div>
+                  <div style={{color:'rgba(60,60,67,.6)',fontSize:12}}>{t.replace(base,'').trim()}</div>
+                </div>
+                <button className="btn" onClick={()=>setInfo(base)}>Guide</button>
+                <button className="btn" onClick={()=>openWeight(i)}>{wVal.toFixed(1)} kg</button>
+                <button className="btn" onClick={()=>openReps(i)}>{rVal} reps</button>
+              </div>;
+            })}
+          </div>
+
+          {Array.isArray(cfg.intervals)&&cfg.intervals.length>0 && (<>
+            <div className="title-sm">{cfg.intervalsTitle}</div>
+            <div className="group">
+              {cfg.intervals.map((t,i)=>(
+                <label className="row" key={i}>
+                  <input aria-label={"Done: "+t} type="checkbox" className="switch" checked={!!data.intervals?.[i]} onChange={()=>toggleInterval(i)} />
+                  <div style={{fontSize:14}}>{t}</div>
+                </label>
+              ))}
+            </div>
+          </>)}
+
+          <div className="title-sm">Notes</div>
+          <div className="group" style={{padding:12}}>
+            <textarea className="note" rows="3" placeholder="How did it feel? Any back tightness?" value={data.notes||''} onChange={(e)=>setData(prev=>({...prev,notes:e.target.value}))}></textarea>
+          </div>
+        </>) : (<div className="group" style={{padding:12}}><div style={{color:'rgba(60,60,67,.6)',fontSize:14}}>Rest / Active recovery. Suggested: light walk, gentle mobility.</div></div>)}
+
+        {picker && <PickerSheet title={picker.title} value={picker.value} options={picker.options} onChange={(val)=>{applyPicker(val);}} onClose={()=>setPicker(null)} format={picker.format}/>}
+        {info && <InfoPopup name={info} onClose={()=>setInfo(null)}/>}
+      </main>;
+    }
+
+    function App(){
+      const [mode,setMode]=useState('calendar');
+      const [selectedDate,setSelectedDate]=useState(null);
+      const [currentMonth,setCurrentMonth]=useState(startOfMonth(new Date()));
+      const handleModeChange=(k)=>{setMode(k); if(k==='today') setSelectedDate(new Date()); else if(k==='calendar') setSelectedDate(null);};
+      useEffect(()=>{ window.__APP_MOUNTED__ = true; var boot=document.getElementById('boot'); if(boot) boot.style.display='none'; },[]);
+      return <ErrorBoundary>
+        <Nav title={selectedDate?'Workout':'Training'} right={<Segmented value={mode} onChange={handleModeChange}/>} />
+        {!selectedDate ? <MonthView currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} setSelectedDate={setSelectedDate}/> : <DetailView selectedDate={selectedDate} setSelectedDate={setSelectedDate}/>}
+        <nav className="tabbar"><div className="tabbar-inner">
+          <button aria-selected={mode==='calendar'} onClick={()=>handleModeChange('calendar')}><div style={{fontSize:18}}>📆</div><div style={{fontSize:11}}>Calendar</div></button>
+          <button aria-selected={mode==='today'} onClick={()=>handleModeChange('today')}><div style={{fontSize:18}}>✅</div><div style={{fontSize:11}}>Today</div></button>
+        </div></nav>
+      </ErrorBoundary>;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>

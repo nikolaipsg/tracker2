@@ -1,0 +1,23 @@
+
+<!doctype html><meta charset="utf-8"><title>Reset Service Worker</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont;margin:2rem}button{padding:.6rem 1rem}</style>
+<h1>Reset Cache & Service Worker</h1>
+<p>This page will unregister the service worker and clear caches for this site, then prompt you to reload.</p>
+<button id="go">Reset now</button>
+<pre id="log"></pre>
+<script>
+async function reset(){
+  const log = (m)=>{document.getElementById('log').textContent += m + "\n"};
+  if ('serviceWorker' in navigator){
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs){ await r.unregister(); log('Unregistered SW: '+(r.scope||'')); }
+  }
+  if (window.caches){
+    const keys = await caches.keys();
+    for (const k of keys){ await caches.delete(k); log('Deleted cache: '+k); }
+  }
+  log('Done. Reloading…');
+  setTimeout(()=>location.reload(true), 800);
+}
+document.getElementById('go').onclick=reset;
+</script>
