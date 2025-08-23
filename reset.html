@@ -1,0 +1,25 @@
+
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reset Tracker Cache</title>
+<style>body{font-family:system-ui,-apple-system;max-width:640px;margin:40px auto;padding:0 16px}button{font-size:16px;padding:10px 14px;border-radius:10px;border:1px solid #ddd}</style>
+</head><body>
+<h1>Reset</h1>
+<p>This page clears the Service Worker and caches. Use it if you see stale or blank pages.</p>
+<button id="btn">Reset now</button>
+<pre id="out"></pre>
+<script>
+(async function(){
+  const out=document.getElementById('out');
+  document.getElementById('btn').onclick=async()=>{
+    try{
+      const regs=await navigator.serviceWorker.getRegistrations();
+      for(const r of regs){await r.unregister();}
+      const names=await caches.keys();
+      for(const n of names){await caches.delete(n);}
+      out.textContent='Done. Close this tab and reload your app.';
+    }catch(e){out.textContent='Error: '+(e.stack||e.message||e);}
+  };
+})();
+</script>
+</body></html>
