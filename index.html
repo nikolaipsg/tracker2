@@ -15,19 +15,30 @@
     *{box-sizing:border-box}
     html,body,#root{height:100%}
     body{margin:0;background:var(--bg);color:var(--label);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial}
+
     .nav{position:sticky;top:0;z-index:10;backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);background:rgba(255,255,255,.85);border-bottom:.5px solid var(--hairline);padding-top:max(env(safe-area-inset-top),10px)}
     .nav .inner{max-width:760px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between}
     .title{font-weight:800;font-size:22px;letter-spacing:-.02em}
     .seg{background:rgba(118,118,128,.12);border-radius:12px;padding:2px;display:inline-flex}
-    .seg button{min-width:88px;padding:8px 12px;border-radius:10px;border:none;background:transparent;color:var(--secondary)}
+    .seg button{min-width:88px;padding:8px 12px;border-radius:10px;border:none;background:transparent;color:var(--secondary);cursor:pointer}
     .seg button.active{background:var(--card);color:var(--tint);box-shadow:var(--shadow)}
+
     .section{max-width:760px;margin:12px auto;padding:0 16px}
-    .group{background:var(--card);border-radius:14px;border:.5px solid var(--hairline);box-shadow:var(--shadow);overflow:hidden}
+    .group{background:var(--card);border-radius:14px;border:.5px solid var(--hairline);box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
+
+    /* NEW: calendar padding helper */
+    .calendar-pad{padding:12px;}
+    .calendar-pad .grid-7{padding:0;}
+
     .row{display:flex;gap:10px;align-items:center;padding:12px 14px}
     .row + .row{border-top:.5px solid var(--sep)}
-    .btn{border:.5px solid var(--hairline);background:var(--card);color:var(--label);border-radius:10px;min-height:40px;padding:8px 10px}
-    .grid-7{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-    .day{aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:.5px solid var(--hairline);background:var(--card)}
+    .btn{border:.5px solid var(--hairline);background:var(--card);color:var(--label);border-radius:10px;min-height:40px;padding:8px 10px;cursor:pointer}
+
+    /* FIXED grid to avoid Sunday clipping */
+    .grid-7{display:grid;grid-template-columns:repeat(7, minmax(0,1fr));gap:6px}
+    @media (max-width:420px){.grid-7{gap:4px}.nav .inner{padding:10px 12px}.section{padding:0 12px}}
+
+    .day{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;border:.5px solid var(--hairline);background:var(--card)}
     .day.today{outline:2px solid var(--tint);outline-offset:-2px}
     .title-sm{font-weight:600;font-size:13px;color:var(--secondary);padding:8px 4px}
     .note{width:100%;border:.5px solid var(--hairline);border-radius:10px;padding:10px;background:var(--card);color:var(--label);min-height:80px}
@@ -41,8 +52,7 @@
     .player-9x16>iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}
     .switch{appearance:none;width:44px;height:28px;border-radius:14px;background:#d1d1d6;position:relative;border:none}
     .switch:after{content:'';position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:12px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .18s}
-    .switch:checked{background:var(--tint)}
-    .switch:checked:after{left:18px}
+    .switch:checked{background:var(--tint)}.switch:checked:after{left:18px}
     .err{position:fixed;inset:0;background:rgba(220,38,38,.1);z-index:9999;display:none;align-items:center;justify-content:center;padding:16px}
     .err pre{max-width:900px;background:#fff;border:1px solid #fca5a5;color:#991b1b;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:12px;white-space:pre-wrap;word-break:break-word}
   </style>
@@ -50,6 +60,7 @@
 <body>
   <div id="root"></div>
   <div id="errorOverlay" class="err"><pre id="errorText"></pre></div>
+
   <script>
   (function(){
     function showErr(msg){var o=document.getElementById('errorOverlay');var t=document.getElementById('errorText');t.textContent=String(msg);o.style.display='flex'}
@@ -120,7 +131,16 @@
       render();
     }
 
-    function segButton(label,key){ var b=document.createElement('button'); b.textContent=label; b.className=''+(state.mode===key?'active':''); b.onclick=function(){ if(key==='today'){ setState({mode:'today', selectedDate:new Date()}); } else { setState({mode:'calendar', selectedDate:null}); } }; return b; }
+    function segButton(label,key){
+      var b=document.createElement('button');
+      b.textContent=label;
+      b.className=(state.mode===key?'active':'');
+      b.onclick=function(){
+        if(key==='today'){ setState({mode:'today', selectedDate:new Date()}); }
+        else { setState({mode:'calendar', selectedDate:null}); }
+      };
+      return b;
+    }
 
     function renderNav(){
       var nav=document.createElement('div'); nav.className='nav';
@@ -133,9 +153,10 @@
       return nav;
     }
 
+    // ---- Month view (with Sunday-fit fixes)
     function renderMonth(){
       var wrap=document.createElement('section'); wrap.className='section';
-      var g=document.createElement('div'); g.className='group'; g.style.padding='12px';
+      var g=document.createElement('div'); g.className='group calendar-pad';
       var row=document.createElement('div'); row.className='row'; row.style.justifyContent='space-between';
       var prev=document.createElement('button'); prev.className='btn'; prev.textContent='←'; prev.onclick=function(){ setState({currentMonth:nextMonth(state.currentMonth,-1)}); };
       var title=document.createElement('div'); title.style.fontWeight='700'; title.textContent= state.currentMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
@@ -143,11 +164,12 @@
       row.appendChild(prev); row.appendChild(title); row.appendChild(next); g.appendChild(row);
 
       var weekTitle=document.createElement('div'); weekTitle.className='title-sm'; weekTitle.textContent='Weekdays'; g.appendChild(weekTitle);
-      var weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun']; var gridHead=document.createElement('div'); gridHead.className='grid-7'; gridHead.style.padding='4px 8px 12px';
+      var weekdays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      var gridHead=document.createElement('div'); gridHead.className='grid-7'; gridHead.style.padding='4px 0 12px'; // tightened
       for(var i=0;i<7;i++){ var c=document.createElement('div'); c.style.textAlign='center'; c.style.color='var(--secondary)'; c.style.fontSize='12px'; c.textContent=weekdays[i]; gridHead.appendChild(c); }
       g.appendChild(gridHead);
 
-      var grid=document.createElement('div'); grid.className='grid-7'; grid.style.padding='0 8px 8px';
+      var grid=document.createElement('div'); grid.className='grid-7'; grid.style.padding='0 0 8px'; // tightened
       var year=state.currentMonth.getFullYear(), month=state.currentMonth.getMonth();
       var first=new Date(year,month,1); var startDay=first.getDay()===0?6:first.getDay()-1;
       for(var s=0;s<startDay;s++){ grid.appendChild(document.createElement('div')); }
@@ -172,6 +194,7 @@
       g.appendChild(grid); wrap.appendChild(g); return wrap;
     }
 
+    // ---- Helpers used in Detail view
     function openGuide(name){
       var url=null, key=null;
       for (var k in VIDEO){ if(name.toLowerCase().indexOf(k.toLowerCase())>-1){ url=VIDEO[k]; key=k; break; } }
@@ -179,11 +202,7 @@
       state.info={ title: key+' Guide', url:url };
       render();
     }
-
-    function openPicker(opts){
-      state.picker=opts; render();
-    }
-
+    function openPicker(opts){ state.picker=opts; render(); }
     function parseSetsFromText(text){
       var m=text.match(/(\d+)\s*[×x]\s*(\d+)/i);
       var isSec=/sec/i.test(text);
@@ -192,7 +211,6 @@
       var reps=m?parseInt(m[2],10):(isSec?30:10);
       return {sets:sets, target:reps, isTime:isSec, perSide:perSide};
     }
-
     function ensureLogsShape(data, exIndex, setsCount){
       data.logs = data.logs || [];
       data.logs[exIndex] = data.logs[exIndex] || { sets: [] };
@@ -204,6 +222,7 @@
       if(arr.length>setsCount){ arr.length=setsCount; }
     }
 
+    // ---- Detail (per-set logging + notes + intervals + guide)
     function renderDetail(){
       var date=state.selectedDate;
       var wrap=document.createElement('main'); wrap.className='section';
