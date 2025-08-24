@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reset</title></head>
+<body>
+<h1>Reset cache & service worker</h1>
+<button id="btn">Reset now</button>
+<pre id="out"></pre>
+<script>
+document.getElementById('btn').onclick = async () => {
+  const out = document.getElementById('out');
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) await r.unregister();
+    const keys = await caches.keys();
+    for (const k of keys) await caches.delete(k);
+    out.textContent = 'Done. Reload twice.';
+  } catch (e) {
+    out.textContent = 'Error: ' + (e && e.message || e);
+  }
+};
+</script>
+</body>
+</html>
